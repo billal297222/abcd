@@ -121,7 +121,7 @@ class WeeklyPaymentController extends Controller
         }
 
         $need = $payment->amount - $kid->balance;
-
+        $need = -($need);
         $parent = $kid->parent;
 
         // Use NotificationService instead of direct FCMService.............................
@@ -140,7 +140,7 @@ class WeeklyPaymentController extends Controller
         $data = [
             'need_amount' => $need,
             'payment_id' => $payment->id,
-            'kid_avatar' => $kid->kavatar ? url($kid->kavatar) : null, 
+            'kid_avatar' => $kid->kavatar ? url($kid->kavatar) : null,
         ];
 
         return $this->success($data, 'Money request sent to parent successfully.', 200);

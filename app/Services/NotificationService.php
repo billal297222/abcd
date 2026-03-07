@@ -1,20 +1,12 @@
 <?php
 
 namespace App\Services;
-
 use App\Models\Notification;
 use App\Services\FcmService;
 use Illuminate\Support\Facades\Log;
 
 class NotificationService
 {
-    protected $fcm;
-
-    public function __construct(FcmService $fcm)
-    {
-        $this->fcm = $fcm;
-    }
-
     public function send(
         ?int $parentId,
         ?int $kidId,
@@ -25,6 +17,7 @@ class NotificationService
         $fcmToken = null
     ) {
         try {
+
             $notification = Notification::create([
                 'parent_id' => $parentId,
                 'kid_id' => $kidId,
@@ -34,20 +27,39 @@ class NotificationService
                 'data' => $data,
             ]);
 
-            if ($fcmToken) {
+            if ($fcmToken && $this->firebaseAvailable()) {
+
+                $fcmService = new FcmService();
+
                 if (is_array($fcmToken)) {
+
                     foreach ($fcmToken as $token) {
-                        $this->fcm->sendToToken($token, $title, $message, $data);
+                        if ($token) {
+                            $fcmService->sendToToken($token, $title, $message, $data);
+                        }
                     }
+
                 } else {
-                    $this->fcm->sendToToken($fcmToken, $title, $message, $data);
+
+                    $fcmService->sendToToken($fcmToken, $title, $message, $data);
+
                 }
             }
 
             return $notification;
+
         } catch (\Throwable $e) {
-            Log::error("NotificationService Error: " . $e->getMessage());
+
+            Log::error('NotificationService Error: '.$e->getMessage());
+
             return false;
         }
+    }
+
+    protected function firebaseAvailable(): bool
+    {
+        $path = storage_path('firebase/netisio-firebase-adminsdk-fbsvc-3c1792f39d.json');
+
+        return file_exists($path) && is_readable($path);
     }
 }
