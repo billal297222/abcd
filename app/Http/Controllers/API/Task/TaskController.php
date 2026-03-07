@@ -5,7 +5,7 @@ namespace App\Http\Controllers\API\Task;
 use App\Http\Controllers\Controller;
 use App\Models\Kid;
 use App\Models\Task;
-use App\Services\FcmService;
+use App\Services\NotificationService;
 use App\Traits\ApiResponse;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
@@ -96,30 +96,47 @@ class TaskController extends Controller
             'status' => 'completed',
         ]);
 
-        // Use FcmService-------------------------------------
+        // .......................send notification to parrent and kids...............
+
         try {
-            $fcmService = new FcmService;
+            $notificationService = app(NotificationService::class);
 
-            // Send to the kid
-            if ($kid && $kid->fcm_token) {
-                $fcmService->sendToToken(
-                    $kid->fcm_token,
-                    'Task Completed!',
-                    'You earned '.number_format($task->reward_amount, 2).' for the task "'.$task->title.'"'
+            // Send notification to the kid
+            if ($kid) {
+                $notificationService->send(
+                    parentId: null,
+                    kidId: $kid->id,
+                    receiverType: 'kid',
+                    title: 'Task Completed',
+                    message: 'You earned '.number_format($task->reward_amount, 2).' for the task "'.$task->title.'"',
+                    data: ['task_id' => $task->id,
+                        'reward_amount' => $task->reward_amount,
+                        'kid_avatar' => $kid->kavatar ? url($kid->kavatar) : null,
+                    ],
+                    fcmToken: $kid->fcm_token
                 );
             }
 
-            // Send to the parent
-            if ($kid->parent && $kid->parent->fcm_token) {
-                $fcmService->sendToToken(
-                    $kid->parent->fcm_token,
-                    $kid->full_name.' completed a task!',
-                    'Earned: '.number_format($task->reward_amount, 2).' for "'.$task->title.'"'
+            // Send notification to the parent
+            if ($kid->parent) {
+                $notificationService->send(
+                    parentId: $kid->parent->id,
+                    kidId: $kid->id,
+                    receiverType: 'parent',
+                    title: 'Task Completed',
+                    message: $kid->full_name.' completed a task! Earned: '.number_format($task->reward_amount, 2).' for "'.$task->title.'"',
+                    data: ['task_id' => $task->id,
+                        'reward_amount' => $task->reward_amount,
+                        'kid_avatar' => $kid->kavatar ? url($kid->kavatar) : null,
+                    ],
+                    fcmToken: $kid->parent->fcm_token
                 );
             }
-        } catch (\Exception $e) {
-            \Log::error('FCM Error: '.$e->getMessage());
+
+        } catch (\Throwable $e) {
+            \Log::error('NotificationService Error: '.$e->getMessage());
         }
+
         // ---------------------------
 
         return $this->success('', 'Task completed successfully!', 200);
@@ -150,7 +167,7 @@ class TaskController extends Controller
         $data = [
             'task' => $task,
             'new_balance' => $kid->balance,
-            'kid_avatar' => $kid->kavatar ? url($kid->kavatar) : null, // added avatar path
+            'kid_avatar' => $kid->kavatar ? url($kid->kavatar) : null,
         ];
 
         return $this->success($data, 'Reward collected successfully!', 200);
@@ -168,10 +185,10 @@ class TaskController extends Controller
                     'reward_amount' => $task->reward_amount,
                     'status' => $task->status,
                     'due_date' => $task->due_date,
-                    'kid_avatar' => $kid->kavatar ? url($kid->kavatar) : null, // added avatar path
+                    'kid_avatar' => $kid->kavatar ? url($kid->kavatar) : null,
                 ];
             });
 
-        return $this->success($tasks,'Tasks retrieved successfully.', 200);
+        return $this->success($tasks, 'Tasks retrieved successfully.', 200);
     }
 }

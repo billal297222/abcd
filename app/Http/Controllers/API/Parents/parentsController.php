@@ -9,10 +9,10 @@ use App\Models\Saving;
 use App\Models\Task;
 use App\Models\WeeklyPayment;
 use App\Traits\ApiResponse;
+use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Hash;
-use Carbon\Carbon;
 
 class parentsController extends Controller
 {
@@ -249,7 +249,6 @@ class parentsController extends Controller
     {
         $parent = auth('parent')->user();
 
-        // Validate that kid belongs to this parent
         $kid = Kid::where('id', $kid_id)
             ->where('parent_id', $parent->id)
             ->first();
@@ -258,7 +257,6 @@ class parentsController extends Controller
             return $this->error('', 'Kid not found', 404);
         }
 
-        // Fetch savings created for this kid
         $savings = Saving::where('kid_id', $kid->id)
             ->latest()
             ->get(['id', 'title', 'description', 'saved_amount', 'target_amount', 'status'])
@@ -394,37 +392,37 @@ class parentsController extends Controller
     }
 
     public function AssignAllPayment()
-{
-    $parent = auth('parent')->user();
+    {
+        $parent = auth('parent')->user();
 
-    $payments = WeeklyPayment::with(['kid:id,full_name,kavatar'])
-        ->where('parent_id', $parent->id)
-        ->latest()
-        ->get(['id', 'kid_id', 'type', 'amount', 'status', 'due_date'])
-        ->map(function ($p) {
+        $payments = WeeklyPayment::with(['kid:id,full_name,kavatar'])
+            ->where('parent_id', $parent->id)
+            ->latest()
+            ->get(['id', 'kid_id', 'type', 'amount', 'status', 'due_date'])
+            ->map(function ($p) {
 
-            // Calculate due_in_days based on due_date
-        //   $dueInDays = Carbon::now()->diffInDays(Carbon::parse($p->due_date), false) + 1;
-        //   $dueInDays = $dueInDays > 0 ? $dueInDays : 0;
-         $dueInDays = Carbon::parse($p->due_date)->isPast() ? 0 :
-                         Carbon::now()->diffInDays(Carbon::parse($p->due_date)) + 1;
+                // Calculate due_in_days based on due_date
+                //   $dueInDays = Carbon::now()->diffInDays(Carbon::parse($p->due_date), false) + 1;
+                //   $dueInDays = $dueInDays > 0 ? $dueInDays : 0;
+                $dueInDays = Carbon::parse($p->due_date)->isPast() ? 0 :
+                                Carbon::now()->diffInDays(Carbon::parse($p->due_date)) + 1;
 
-            return [
-                'id' => $p->id,
-                'type' => $p->type,
-                'due_days' => $dueInDays,  // negative = expired, 0 = today, positive = remaining
-                'amount' => number_format($p->amount, 2),
-                'status' => $p->status,
-                'kid' => $p->kid ? [
-                    'id' => $p->kid->id,
-                    'name' => $p->kid->full_name,
-                    'avatar' => $p->kid->kavatar ? url($p->kid->kavatar) : null,
-                ] : null,
-            ];
-        });
+                return [
+                    'id' => $p->id,
+                    'type' => $p->type,
+                    'due_days' => $dueInDays,  
+                    'amount' => number_format($p->amount, 2),
+                    'status' => $p->status,
+                    'kid' => $p->kid ? [
+                        'id' => $p->kid->id,
+                        'name' => $p->kid->full_name,
+                        'avatar' => $p->kid->kavatar ? url($p->kid->kavatar) : null,
+                    ] : null,
+                ];
+            });
 
-    return $this->success($payments, 'Assign all payments to kids', 200);
-}
+        return $this->success($payments, 'Assign all payments to kids', 200);
+    }
 
     public function allMemberAssign()
     {
@@ -487,93 +485,98 @@ class parentsController extends Controller
     }
 
     public function recentActivity()
-{
-    $parent = auth('parent')->user();
+    {
+        $parent = auth('parent')->user();
 
-    if (!$parent) {
-        return $this->error('', 'Unauthorized or invalid token', 401);
-    }
-
-    $kids = Kid::where('parent_id', $parent->id)->pluck('id');
-
-    $tasks = Task::whereIn('kid_id', $kids)
-        ->latest('updated_at')
-        ->take(10)
-        ->get(['id', 'kid_id', 'title', 'status', 'updated_at']);
-
-    $goals = Saving::whereIn('kid_id', $kids)
-        ->latest('updated_at')
-        ->take(10)
-        ->get(['id', 'kid_id', 'title', 'saved_amount', 'target_amount', 'status', 'updated_at']);
-
-    $payments = WeeklyPayment::whereIn('kid_id', $kids)
-        ->latest('updated_at')
-        ->take(10)
-        ->get(['id', 'kid_id', 'title', 'status', 'updated_at']);
-
-    $activities = new Collection;
-
-    foreach ($tasks as $task) {
-        $kid = $task->kid;
-        if (!$kid) continue;
-
-        if ($task->status === 'completed') {
-            $activities->push([
-                'username' => $kid->username,
-                'avatar' => $kid->kavatar ? url($kid->kavatar) : null,
-                'message' => " completed the task <b>{$task->title}.",
-                'type' => 'task',
-                'time' => $task->updated_at,
-            ]);
-        }
-    }
-
-    foreach ($goals as $goal) {
-        $kid = $goal->kid;
-        if (!$kid) continue;
-
-        $percentage = 0.00;
-        if ($goal->target_amount > 0) {
-            $percentage = round(($goal->saved_amount / $goal->target_amount) * 100, 2);
+        if (! $parent) {
+            return $this->error('', 'Unauthorized or invalid token', 401);
         }
 
-        if ($goal->status === 'completed') {
-            $activities->push([
-                'username' => $kid->username,
-                'avatar' => $kid->kavatar ? url($kid->kavatar) : null,
-                'message' => " completed the goal {$goal->title}",
-                'type' => 'goal',
-                'time' => $goal->updated_at,
-            ]);
-        } elseif ($percentage > 0) {
-            $activities->push([
-                'username' => $kid->username,
-                'avatar' => $kid->kavatar ? url($kid->kavatar) : null,
-                'message' => " reached {$percentage}% of {$goal->title} .",
-                'type' => 'goal',
-                'time' => $goal->updated_at,
-            ]);
+        $kids = Kid::where('parent_id', $parent->id)->pluck('id');
+
+        $tasks = Task::whereIn('kid_id', $kids)
+            ->latest('updated_at')
+            ->take(10)
+            ->get(['id', 'kid_id', 'title', 'status', 'updated_at']);
+
+        $goals = Saving::whereIn('kid_id', $kids)
+            ->latest('updated_at')
+            ->take(10)
+            ->get(['id', 'kid_id', 'title', 'saved_amount', 'target_amount', 'status', 'updated_at']);
+
+        $payments = WeeklyPayment::whereIn('kid_id', $kids)
+            ->latest('updated_at')
+            ->take(10)
+            ->get(['id', 'kid_id', 'title', 'status', 'updated_at']);
+
+        $activities = new Collection;
+
+        foreach ($tasks as $task) {
+            $kid = $task->kid;
+            if (! $kid) {
+                continue;
+            }
+
+            if ($task->status === 'completed') {
+                $activities->push([
+                    'username' => $kid->username,
+                    'avatar' => $kid->kavatar ? url($kid->kavatar) : null,
+                    'message' => " completed the task <b>{$task->title}.",
+                    'type' => 'task',
+                    'time' => $task->updated_at,
+                ]);
+            }
         }
-    }
 
-    foreach ($payments as $payment) {
-        $kid = $payment->kid;
-        if (!$kid) continue;
+        foreach ($goals as $goal) {
+            $kid = $goal->kid;
+            if (! $kid) {
+                continue;
+            }
 
-        if ($payment->status === 'paid') {
-            $activities->push([
-                'username' => $kid->username,
-                'avatar' => $kid->kavatar ? url($kid->kavatar) : null,
-                'message' => "received payment for {$payment->title}.",
-                'type' => 'payment',
-                'time' => $payment->updated_at,
-            ]);
+            $percentage = 0.00;
+            if ($goal->target_amount > 0) {
+                $percentage = round(($goal->saved_amount / $goal->target_amount) * 100, 2);
+            }
+
+            if ($goal->status === 'completed') {
+                $activities->push([
+                    'username' => $kid->username,
+                    'avatar' => $kid->kavatar ? url($kid->kavatar) : null,
+                    'message' => " completed the goal {$goal->title}",
+                    'type' => 'goal',
+                    'time' => $goal->updated_at,
+                ]);
+            } elseif ($percentage > 0) {
+                $activities->push([
+                    'username' => $kid->username,
+                    'avatar' => $kid->kavatar ? url($kid->kavatar) : null,
+                    'message' => " reached {$percentage}% of {$goal->title} .",
+                    'type' => 'goal',
+                    'time' => $goal->updated_at,
+                ]);
+            }
         }
+
+        foreach ($payments as $payment) {
+            $kid = $payment->kid;
+            if (! $kid) {
+                continue;
+            }
+
+            if ($payment->status === 'paid') {
+                $activities->push([
+                    'username' => $kid->username,
+                    'avatar' => $kid->kavatar ? url($kid->kavatar) : null,
+                    'message' => "received payment for {$payment->title}.",
+                    'type' => 'payment',
+                    'time' => $payment->updated_at,
+                ]);
+            }
+        }
+
+        $sorted = $activities->sortByDesc('time')->values();
+
+        return $this->success($sorted, 'All activities of kids', 200);
     }
-
-    $sorted = $activities->sortByDesc('time')->values();
-
-    return $this->success($sorted, 'All activities of kids', 200);
-}
-
 }

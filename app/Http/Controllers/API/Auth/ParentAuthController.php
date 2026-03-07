@@ -199,7 +199,7 @@ class ParentAuthController extends Controller
         $types = ['Electricity', 'Internet'];
 
         foreach ($types as $type) {
-            $amount = mt_rand(1000, 2000) / 100; // random 10-20
+            $amount = mt_rand(10, 20);
 
             WeeklyPayment::create([
                 'kid_id' => $kid->id,

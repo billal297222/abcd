@@ -7,7 +7,7 @@ use App\Models\Family;
 use App\Models\Kid;
 use App\Models\KidTransaction;
 use App\Models\ParentModel;
-use App\Services\FcmService;
+use App\Services\NotificationService;
 use App\Traits\ApiResponse;
 use Illuminate\Http\Request;
 
@@ -75,17 +75,29 @@ class KidTransactionController extends Controller
         // Send FCM notification to parent
 
         try {
-            if ($kid && $kid->fcm_token) {
+            if ($kid) {
+                $notificationService = app(NotificationService::class);
 
-                $fcmService = new FcmService;
-                $fcmService->sendToToken(
-                    $kid->fcm_token,
-                    'Money request approved!',
-                    'Amount: '.number_format($request->money, 2).($request->note ? ' - Note: '.$request->note : '')
+                $message = 'Amount: '.number_format($request->money, 2);
+                if (! empty($request->note)) {
+                    $message .= ' - Note: '.$request->note;
+                }
+
+                $notificationService->send(
+                    parentId: $kid->parent->id,
+                    kidId: $kid->id,
+                    receiverType: 'parent',
+                    title: 'Money Request ',
+                    message: $message,
+                    data: [
+                        'amount' => $request->money,
+                        'note' => $request->note ?? null,
+                    ],
+                    fcmToken: $kid->fcm_token
                 );
             }
-        } catch (\Exception $e) {
-            \Log::error('FCM Error: '.$e->getMessage());
+        } catch (\Throwable $e) {
+            \Log::error('NotificationService Error: '.$e->getMessage());
         }
 
         return $this->success('', 'Money request sent to parent successfully', 200);
@@ -226,7 +238,7 @@ class KidTransactionController extends Controller
                 'id' => $p->id,
                 'unique_id' => $p->p_unique_id,
                 'name' => $p->full_name,
-                'avatar' => $p->pavatar ? asset($p->pavatar) : null, // parent avatar path
+                'avatar' => $p->pavatar ? asset($p->pavatar) : null,
             ];
         }
 
@@ -240,7 +252,7 @@ class KidTransactionController extends Controller
                 'id' => $kid->id,
                 'unique_id' => $kid->k_unique_id,
                 'name' => $kid->full_name ?? $kid->username,
-                'avatar' => $kid->kavatar ? asset($kid->kavatar) : null, // kid avatar path
+                'avatar' => $kid->kavatar ? asset($kid->kavatar) : null,
             ];
         }
 

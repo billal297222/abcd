@@ -6,13 +6,16 @@ use App\Http\Controllers\Controller;
 use App\Models\Kid;
 use App\Models\KidTransaction;
 use App\Models\Saving;
-use App\Services\FcmService;
+use App\Services\NotificationService;
+use App\Models\Notification;
 use App\Traits\ApiResponse;
 use Illuminate\Http\Request;
 
 class SavingGoalController extends Controller
 {
     use ApiResponse;
+
+
 
     public function createGoal(Request $request)
     {
@@ -62,37 +65,43 @@ class SavingGoalController extends Controller
             'created_by_parent_id' => $createdByParentId,
         ]);
 
-        // if ($createdByParentId === null) {
-        //     // Use FcmService-------------------------------------
-        //     try {
-        //         $fcmService = new FcmService;
-
-        //         // Send to the parent
-        //         if ($kid->parent && $kid->parent->fcm_token) {
-        //             $fcmService->sendToToken(
-        //                 $kid->parent->fcm_token,
-        //                 $kid->username.' created a Goal!',
-        //                 'Goal: "'.$goal->title.'" with target amount: '.number_format($goal->target_amount, 2)
-        //             );
-        //         }
-        //     } catch (\Exception $e) {
-        //         \Log::error('FCM Error: '.$e->getMessage());
-        //     }
-        //     // ---------------------------
-        // }
-
-        // Include kid avatar path
         $goalData = [
             'id' => $goal->id,
             'kid_id' => $kid->id,
             'kid_name' => $kid->username,
-            'kid_avatar' => $kid->kavatar ? url($kid->kavatar) : null, // fixed path
+            'kid_avatar' => $kid->kavatar ? url($kid->kavatar) : null,
             'title' => $goal->title,
             'description' => $goal->description,
             'target_amount' => $goal->target_amount,
             'saved_amount' => $goal->saved_amount,
             'status' => $goal->status,
         ];
+
+        //................Notification when goal created ..............
+
+        try {
+            $notificationService = app(NotificationService::class);
+
+            if (is_null($createdByParentId) && $kid->parent) {
+
+                $notificationService->send(
+                    parentId: $kid->parent->id,
+                    kidId: $kid->id,
+                    receiverType: 'parent',
+                    title: 'Goal Created',
+                    message: $kid->username.' created a new goal: "'.$goal->title.'"',
+                    data: [
+                        'goal_id' => $goal->id,
+                        'goal_title' => $goal->title,
+                        'kid_avatar' => $kid->kavatar ? url($kid->kavatar) : null,
+                    ],
+                    fcmToken: $kid->parent->fcm_token
+                );
+            }
+
+        } catch (\Throwable $e) {
+            \Log::error('NotificationService Error: '.$e->getMessage());
+        }
 
         return $this->success($goalData, 'Saving goal created successfully.', 201);
     }
@@ -112,31 +121,38 @@ class SavingGoalController extends Controller
             return $this->error('', 'Goals not found.', 401);
         }
 
+        // ...............Notification when goal completed ..............
+
         if ($goal->status === 'completed') {
-            // Use FcmService-------------------------------------
             try {
-                $fcmService = new FcmService;
+                $notificationService = app(NotificationService::class);
 
-                // Send to the kid
-                if ($kid && $kid->fcm_token) {
-                    $fcmService->sendToToken(
-                        $kid->fcm_token,
-                        'Goal Completed!',
-                        'You Completed the Goal "'.$goal->title.'"'
+                if ($kid) {
+                    $notificationService->send(
+                        parentId: null,
+                        kidId: $kid->id,
+                        receiverType: 'kid',
+                        title: 'Saving Goal Completed',
+                        message: 'You completed the goal "'.$goal->title.'"',
+                        data: ['goal_id' => $goal->id],
+                        fcmToken: $kid->fcm_token
                     );
                 }
 
-                // Send to the parent
-                if ($kid->parent && $kid->parent->fcm_token) {
-                    $fcmService->sendToToken(
-                        $kid->parent->fcm_token,
-                        $kid->full_name.' completed a Goal!',
-                        'The Completed is "'.$goal->title.'"'
+                if ($kid->parent) {
+                    $notificationService->send(
+                        parentId: $kid->parent->id,
+                        kidId: $kid->id,
+                        receiverType: 'parent',
+                        title: 'Saving Goal Completed',
+                        message: $kid->full_name.' completed a goal: "'.$goal->title.'"',
+                        data: ['goal_id' => $goal->id],
+                        fcmToken: $kid->parent->fcm_token
                     );
                 }
 
-            } catch (\Exception $e) {
-                \Log::error('FCM Error: '.$e->getMessage());
+            } catch (\Throwable $e) {
+                \Log::error('NotificationService Error: '.$e->getMessage());
             }
 
             // ---------------------------
@@ -237,6 +253,28 @@ class SavingGoalController extends Controller
             return $this->success($data, 'You clicked cancel. Amount returned to your balance.', 200);
         }
 
-        return $this->error('','Invalid action',400);
+        return $this->error('', 'Invalid action', 400);
+    }
+
+
+    public function getNotifications(Request $request){
+        $request->validate([
+            'user_id' =>'required|integer',
+            'user_type' => 'required |in:kid,parent',
+        ]);
+
+        $notificaitons = Notification::where('receiver_type',$request->user_type)
+            ->where(function($query) use ($request){
+                if($request->user_type === 'kid'){
+                    $query->where('kid_id',$request->user_id);
+                }else if($request->user_type === 'parent'){
+                    $query->where('parent_id',$request->user_id);
+                }
+            })
+            ->orderBy('created_at','desc')
+            ->get();
+
+            return $this->success($notificaitons,'User ntifications',200);
+
     }
 }

@@ -3,8 +3,8 @@
 namespace App\Services;
 
 use Kreait\Firebase\Factory;
-
 use Kreait\Firebase\Messaging\CloudMessage;
+use Kreait\Firebase\Messaging\Notification;
 
 class FcmService
 {
@@ -18,20 +18,23 @@ class FcmService
         $this->messaging = $factory->createMessaging();
     }
 
-    /**
-     * Send notification to a specific FCM token
-     */
     public function sendToToken($token, $title, $body, $data = [])
     {
-        $message = CloudMessage::withTarget('token', $token)
-            ->withNotification([
-                'title' => $title,
-                'body' => $body,
-            ])
-            ->withData($data);
+        try {
 
-        return $this->messaging->send($message);
+            $data = array_map('strval', $data);
+
+            $message = CloudMessage::withTarget('token', $token)
+                ->withNotification(Notification::create($title, $body))
+                ->withData($data);
+
+            return $this->messaging->send($message);
+
+        } catch (\Throwable $e) {
+
+            \Log::error('FCM Send Error: '.$e->getMessage());
+
+            return false;
+        }
     }
-
-
 }

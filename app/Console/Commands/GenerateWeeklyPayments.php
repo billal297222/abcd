@@ -39,7 +39,7 @@ class GenerateWeeklyPayments extends Command
                     ->first();
 
                 if (! $lastBill) {
-                    $amount = mt_rand(1000, 2000) / 100;
+                    $amount = mt_rand(10, 20);
 
                     WeeklyPayment::create([
                         'kid_id' => $kid->id,
@@ -56,7 +56,7 @@ class GenerateWeeklyPayments extends Command
                 }
 
                 if ($now->greaterThanOrEqualTo($lastBill->due_date)) {
-                    $amount = mt_rand(1000, 2000) / 100;
+                    $amount = mt_rand(10, 20);
 
                     WeeklyPayment::create([
                         'kid_id' => $kid->id,

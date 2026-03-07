@@ -10,6 +10,7 @@ use  App\Http\Controllers\API\KidMoney\KidTransactionController;
 use  App\Http\Controllers\API\KidMoney\AddListController;
 use  App\Http\Controllers\API\ParentMoney\ParentTransactionController;
 use  App\Http\Controllers\API\SavingGoals\SavingGoalController;
+use  App\Http\Controllers\API\Notification\NotificationController;
 
 
 Route::post('/parents/register', [ParentAuthController::class, 'register']);
@@ -50,11 +51,11 @@ Route::middleware('auth:kid')->group(function () {
    // Route::post('/kids/savings-goal', [KidController::class, 'createGoal']);
     Route::post('/kids/saving-goals/{goal_id}/add', [KidController::class, 'AddMoney']);
     Route::get('/kid/saving-goal/all', [KidController::class, 'getKidSaving']);
-    Route::post('/kid/weekly-payments/{id}/pay', [WeeklyPaymentController::class, 'payWeeklyPayment']);
+    Route::get('/kid/weekly-payments/pay/{payment_id}', [WeeklyPaymentController::class, 'payWeeklyPayment']);
     //Route::get('/kid/weekly-payment/all', [WeeklyPaymentController::class, 'getKidPayment']);
     Route::get('/kid/profile', [KidController::class, 'KidProfile']);
     Route::post('/kids/logout', [KidController::class, 'klogout']);
-    Route::post('/kid/payment/request-money/{payment_id}', [WeeklyPaymentController::class, 'requestMoneyPayment']);
+    Route::get('/kid/payment/request-money/{payment_id}', [WeeklyPaymentController::class, 'requestMoneyPayment']);
     Route::get('/kids/weekly-payments', [WeeklyPaymentController::class, 'kidsBill']);
 
 
@@ -99,6 +100,8 @@ Route::middleware(['auth:parent,kid'])->group(function () {
     Route::get('/family/my-family', [parentsController::class, 'myFamily']);
     Route::get('/profile/my-profile', [parentsController::class, 'myProfile']);
     Route::get('/family/member', [KidTransactionController::class, 'familyMember']);
+    Route::post('user/notifications', [NotificationController::class, 'getNotifications']);
+    Route::get('user/mark-read/notification/{notification_id}',[NotificationController::class, 'markAsRead']);
 
 });
 
