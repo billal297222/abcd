@@ -14,6 +14,7 @@ class Kernel extends ConsoleKernel
     {
         // $schedule->command('inspire')->hourly();
           $schedule->command('payments:generate')->daily();
+          $schedule->command('app:reset-monthly-limit')->monthlyOn(1, '00:01');
        // $schedule->command('payments:generate')->everyMinute();
     }
 

@@ -13,6 +13,7 @@ use App\Traits\ApiResponse;
 use Illuminate\Support\Facades\Hash;
 
 
+
 class ParentTransactionController extends Controller
 {
     use ApiResponse;
@@ -30,21 +31,21 @@ class ParentTransactionController extends Controller
     if (!Hash::check($request->password, $parent->password)) {
         return $this->error('', 'Incorrect password', 401);
     }
-    
-    // MONTHLY RESET LOGIC START
-    $currentMonth = Carbon::now()->format('Y-m');
 
-    $lastTransaction = ParentTransaction::where('parent_id', $parent->id)->where('type', 'deposit')
-        ->latest()
-        ->first();
+    // // MONTHLY RESET LOGIC START
+    // $currentMonth = Carbon::now()->format('Y-m');
 
-    if (!$lastTransaction ||
-        Carbon::parse($lastTransaction->transaction_datetime)->format('Y-m') != $currentMonth) {
+    // $lastTransaction = ParentTransaction::where('parent_id', $parent->id)->where('type', 'deposit')
+    //     ->latest()
+    //     ->first();
 
-        $parent->available_limit = $backend->monthly_limit;
-        $parent->save();
-    }
-    // MONTHLY RESET LOGIC END
+    // if (!$lastTransaction ||
+    //     Carbon::parse($lastTransaction->transaction_datetime)->format('Y-m') != $currentMonth) {
+
+    //     $parent->available_limit = $backend->monthly_limit;
+    //     $parent->save();
+    // }
+    // // MONTHLY RESET LOGIC END
 
     $amount = $request->amount;
 

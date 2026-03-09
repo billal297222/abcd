@@ -304,14 +304,18 @@ class parentsController extends Controller
 
             return $this->error('', 'kids not found', 404);
         }
-        $payments = WeeklyPayment::where('kid_id', $kid->id)->latest()->get(['id', 'title', 'amount', 'due_in_days', 'status'])
+        $payments = WeeklyPayment::where('kid_id', $kid->id)->latest()->get(['id', 'type', 'amount', 'due_date', 'status'])
             ->map(function ($p) {
+                $dueInDays = Carbon::parse($p->due_date)->isPast()
+                    ? 0
+                    : Carbon::now()->diffInDays(Carbon::parse($p->due_date)) + 1;
                 return [
                     'id' => $p->id,
-                    'title' => $p->title,
+                    'type' => $p->type,
                     'amount' => number_format($p->amount, 2),
                     'status' => $p->status,
-                    'due_in_days' => $p->due_in_days,
+                    'dueInDays' => $dueInDays,
+                    'due_date' => $p->due_date,
                 ];
             });
 
@@ -410,7 +414,7 @@ class parentsController extends Controller
                 return [
                     'id' => $p->id,
                     'type' => $p->type,
-                    'due_days' => $dueInDays,  
+                    'due_days' => $dueInDays,
                     'amount' => number_format($p->amount, 2),
                     'status' => $p->status,
                     'kid' => $p->kid ? [
@@ -507,7 +511,7 @@ class parentsController extends Controller
         $payments = WeeklyPayment::whereIn('kid_id', $kids)
             ->latest('updated_at')
             ->take(10)
-            ->get(['id', 'kid_id', 'title', 'status', 'updated_at']);
+            ->get(['id', 'kid_id', 'type', 'status', 'updated_at']);
 
         $activities = new Collection;
 

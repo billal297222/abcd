@@ -39,6 +39,7 @@ Route::middleware('auth:parent')->group(function () {
   // Route::post('/parent/weekly-payments', [WeeklyPaymentController::class, 'createWeeklyPayment']);
    Route::post('/parent/kids/{kidId}/today-spend', [KidController::class, 'updateTodayCanSpend']);
    Route::post('/parents/logout', [ParentAuthController::class, 'plogout']);
+   Route::get('/parent/audit/kids-payment', [WeeklyPaymentController::class, 'auditKidsPayment']);
 
 });
 

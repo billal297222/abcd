@@ -98,7 +98,6 @@ class WeeklyPaymentController extends Controller
             'status' => 'paid',
         ]);
 
-
         $data = [
             'weekly_payment' => $payment,
             'kid_balance' => $kid->balance,
@@ -136,7 +135,6 @@ class WeeklyPaymentController extends Controller
             fcmToken: $parent->fcm_token
         );
 
-
         $data = [
             'need_amount' => $need,
             'payment_id' => $payment->id,
@@ -169,5 +167,42 @@ class WeeklyPaymentController extends Controller
         ];
 
         return $this->success($data, 'Kids bills retreived successfully.', 200);
+    }
+
+    public function auditKidsPayment()
+    {
+        $parent = auth('parent')->user();
+
+        $kids = $parent->kids()->with('weeklyPayments')->get();
+
+        $allPayments = collect();
+
+        foreach ($kids as $kid) {
+            foreach ($kid->weeklyPayments as $payment) {
+                $dueInDays = Carbon::parse($payment->due_date)->isPast()
+                    ? 0
+                    : Carbon::now()->diffInDays(Carbon::parse($payment->due_date)) + 1;
+
+                $allPayments->push([
+                    'parent_id' => $parent->id,
+                    'parent_name' => $parent->name,
+                    'payment_id' => $payment->id,
+                    'type' => $payment->type,
+                    'amount' => number_format($payment->amount, 2),
+                    'due_date' => Carbon::parse($payment->due_date)->format('d F Y'),
+                    'due_in_days' => $dueInDays,
+                    'status' => $payment->status,
+                    'kid_id' => $kid->id,
+                    'kid_name' => $kid->full_name,
+                    'kid_avatar' => $kid->kavatar ? url($kid->kavatar) : null,
+                ]);
+            }
+        }
+
+        $allPayments = $allPayments->sortByDesc(function ($payment) {
+            return Carbon::parse($payment['due_date']);
+        })->values();
+
+        return $this->success($allPayments, 'All kids payments ordered by latest retrieved successfully.', 200);
     }
 }
